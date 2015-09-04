@@ -5,22 +5,21 @@ namespace Super_Mario_RNN
     internal class Tile
     {
 
-        public BackgroundEnum Backgroud { get; private set; }
-        public int Brick { get; private set; }
-        public TileContents Contents { get; private set; }
+        public TileContents? Contents { get; private set; }
         public bool PageFlag { get; private set; }
-        public SceneryEnum Scenery { get; private set; }
-        public int Size { get; private set; }
+        public int? Size { get; private set; }
         public int X { get; private set; }
-        public int Y { get; private set; }
+        public int? Y { get; private set; }
+        public bool End { get; set; }
 
         public Tile(byte v1, byte v2)
         {
-            Backgroud = BackgroundEnum.IGNORED;
-            Scenery = SceneryEnum.IGNORED;
+            if (v1 == 0xFD)
+            {
+                End = true;
+                return;
+            }
             int yNybble = (v1 & 0xF);
-            //if (yNybble == 0xF)
-            //    throw new Exception("This tile should be 3 bytes");
 
             X = v1 >> 4;
 
@@ -49,23 +48,28 @@ namespace Super_Mario_RNN
             {
                 Size = obj & 0xF;
                 Contents = (TileContents)(obj - Size + 0xC00);
-
-                if (Contents == TileContents.HORIZONTAL_QUESTION_BLOCK_COIN_V_3)
-                    Y = 3;
-                else if (Contents == TileContents.BRIDGE_V_7 ||
-                    Contents == TileContents.HORIZONTAL_QUESTION_BLOCK_COIN_V_7)
-                    Y = 7;
-                else if (Contents == TileContents.BRIDGE_V_8)
-                    Y = 8;
-                else if (Contents == TileContents.BRIDGE_V_10)
-                    Y = 10;
             }
             else if (yNybble == 0xD)
             {
-                if (obj < 0x40)
+                if (obj < 0x10)
                 {
-                    Size = obj & 0x3F;
-                    Contents = TileContents.PAGE_SKIP;
+                    Size = obj & 0xF;      // Size can only be up to 0xF
+                    Contents = TileContents.PAGE_SKIP0;
+                }
+                else if (obj < 0x20)
+                {
+                    Size = obj & 0xF;      // Size can only be up to 0xF
+                    Contents = TileContents.PAGE_SKIP1;
+                }
+                else if (obj < 0x30)
+                {
+                    Size = obj & 0xF;      // Size can only be up to 0xF
+                    Contents = TileContents.PAGE_SKIP2;
+                }
+                else if (obj < 0x40)
+                {
+                    Size = obj & 0xF;      // Size can only be up to 0xF
+                    Contents = TileContents.PAGE_SKIP3;
                 }
                 else if (obj >= 0x40 &&
                     obj < 0x45)
@@ -76,7 +80,7 @@ namespace Super_Mario_RNN
                     obj < 0x48)
                 {
                     Size = obj - 0x45;
-                    Contents = (TileContents)(obj - 0x45 + 0xD00);
+                    Contents = TileContents.SCROLL_STOP;
                 }
                 else if (obj >= 0x48 &&
                     obj < 0x4C)
@@ -88,12 +92,12 @@ namespace Super_Mario_RNN
             {
                 if (obj < 0x40)
                 {
-                    Brick = (obj & 0xF);
-                    Scenery = (SceneryEnum)(obj & 0x30);
+                    Size = (obj & 0xF);  // The bricks type is stored in size
+                    Contents = (TileContents)((obj & 0x30) + 0xE00);
                 }
                 else
                 {
-                    Backgroud = (BackgroundEnum)(obj & 0x7);
+                    Contents = (TileContents)((obj & 0x7) + 0xE40);
                 }
             }
             else if (yNybble == 0xF)
@@ -130,57 +134,80 @@ namespace Super_Mario_RNN
 
         }
 
-        //public Tile(byte v1, byte v2, byte v3)
-        //{
-        //    Backgroud = BackgroundEnum.IGNORED;
-        //    Scenery = SceneryEnum.IGNORED;
-        //    if ((v1 & 0xF) != 0xF)
-        //        throw new Exception("This tile should be 2 bytes");
+        /// <summary>
+        /// Construct a Tile from an array of floats.
+        /// 
+        /// </summary>
+        /// <param name="fp"></param>
+        public Tile(float[] fp)
+        {
+            float endFloat = fp[0];
+            float pageFloat = fp[1];
+            float[] xFloats = new float[16];
+            float[] yFloats = new float[16];
+            float[] sizeFloats = new float[16];
+            float[] contentsFloats = new float[64];
 
-        //    X = v1 >> 4;
-        //    Y = v2 >> 4;
+            Array.Copy(fp, 2, xFloats, 0, 16);
+            Array.Copy(fp, 18, yFloats, 0, 16);
+            Array.Copy(fp, 34, sizeFloats, 0, 16);
+            Array.Copy(fp, 50, contentsFloats, 0, 64);
 
-        //    int variable = v3 & 0xF;
-        //    int obj = (v2 & 0x0F) | (v3 & 0xF0);
+            // 1:End
+            End = true;
+            for (int i = 1; i < fp.Length; i++)
+                if (fp[i] > endFloat)
+                    End = false;
+            if (End)
+                return;
+            // 1:Page
+            PageFlag = pageFloat > 0.5;
+            // 16:X
+            X = GetMaxIndex(xFloats);
+            // 16:Y
+            Y = GetMaxIndexOrNull(yFloats);
+            // 16:Size
+            Size = GetMaxIndexOrNull(sizeFloats);
+            // 64:Contents
+            var tileValues = Enum.GetValues(typeof(TileContents)) as TileContents[];
+            int maxTile = GetMaxIndex(contentsFloats);
+            Contents = tileValues[(int)maxTile];
 
-        //    PageFlag = (obj & 0x80) == 0x80;
+        }
 
-        //    switch (variable)
-        //    {
-        //        case 0x0:
-        //            Size = obj & 0xF;
-        //            Contents = (TileContents)(obj - Size + 0x1000);
-        //            break;
-        //        case 0x2:
-        //            Size = obj & 0xF;
-        //            Contents = TileContents.STAIRS_FOR_BEGINNING;
-        //            break;
-        //        case 0x4:
-        //            Size = obj & 0xF;
-        //            Contents = TileContents.SQUARE_CEILING_TILES;
-        //            break;
-        //        case 0x6:
-        //            Size = obj & 0xF;
-        //            Contents = TileContents.HORIZONTALLY_EXTENDABLE_EDGES_RIGHT;
-        //            break;
-        //        case 0x8:
-        //            Size = obj & 0xF;
-        //            Contents = (TileContents)(obj - Size + 0x10800);
-        //            break;
-        //        case 0xA:
-        //            Size = obj & 0xF;
-        //            Contents = TileContents.HORIZONTALLY_EXTENDABLE_BOTTOM_LEFT_WALL;
-        //            break;
-        //        case 0xC:
-        //            Size = obj & 0xF;
-        //            Contents = TileContents.HORIZONTALLY_EXTENDABLE_BOTTOM_RIGHT_WALL;
-        //            break;
-        //        case 0xE:
-        //            Size = obj & 0xF;
-        //            Contents = TileContents.VERTICAL_SEA_BLOCK;
-        //            break;
-        //    }
-        //}
+        private int? GetMaxIndexOrNull(float[] array)
+        {
+            float max = array[0];
+            int maxIndex = 0;
+            bool allEqual = true;
+            for (int i = 0; i < array.Length; i++)
+            {
+                allEqual &= max == array[i];
+                if (array[i] > max)
+                {
+                    max = array[i];
+                    maxIndex = i;
+                }
+            }
+            if (allEqual)
+                return null;
+            return maxIndex;
+        }
+
+        private int GetMaxIndex(float[] array)
+        {
+            float max = float.NegativeInfinity;
+            int maxIndex = 0;
+            for (int i = 0; i < array.Length; i++)
+            {
+                if (array[i] > max)
+                {
+                    max = array[i];
+                    maxIndex = i;
+                }
+            }
+            return maxIndex;
+        }
 
         public override string ToString()
         {
@@ -188,12 +215,71 @@ namespace Super_Mario_RNN
             if (PageFlag)
                 pageString = "P";
 
-            if (Scenery != SceneryEnum.IGNORED)
-                return string.Format("({0}){1} {2} {3}", X, pageString, Brick, Scenery);
-            if (Backgroud != BackgroundEnum.IGNORED)
-                return string.Format("({0}){1} {2}", X, pageString, Backgroud);
-
             return string.Format("({0},{1}){2} {3} x{4}", X, Y, pageString, Contents, Size + 1);
+        }
+
+        public string ToVector()
+        {
+            if (End)
+            {
+                return OneHot(0, 114);
+            }
+            string result = "0";
+            // Page
+            if (PageFlag)
+                result += 1;
+            else
+                result += 0;
+            // X
+            result += OneHot(X, 16);
+            // Y
+            if (Y == null)
+                result += OneHot(-1, 16);
+            else
+                result += OneHot((int)Y, 16);
+            // Size
+            if (Size == null)
+                result += OneHot(-1, 16);
+            else
+                result += OneHot((int)Size, 16);
+            // Contents (??)
+            var tileValues = Enum.GetValues(typeof(TileContents));
+            result += OneHot(Array.IndexOf(tileValues, Contents), tileValues.Length);
+
+            return result;
+        }
+
+        private static string OneHot(int hot, int span)
+        {
+            if (hot < 0 || hot >= span)
+                return new string('0', span);
+
+            string before = new string('0', hot);
+            string after = new string('0', span - hot - 1);
+            return before + '1' + after;
+        }
+
+        public ushort ToBytes()
+        {
+            if (End)
+                return 0xFD00;
+
+            ushort result = (ushort)(X << 12);
+            if (Y != null)
+                result |= (ushort)(Y << 8);
+
+            result |= (ushort)Contents;
+
+            if (Size != null)
+            {
+                result |= (ushort)Size;
+            }
+
+            if (PageFlag)
+                result |= 1 << 7;
+
+
+            return result;
         }
     }
 }
