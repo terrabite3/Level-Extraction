@@ -4,15 +4,15 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
-namespace Super_Mario_RNN
+namespace SuperMarioRNN
 {
-    class LevelExtractor
+    public class LevelExtractor
     {
         private const byte END_OF_LEVEL = 0xFD;
         private const string ROM_PATH = "../../Super_mario_brothers.nes";
-        private const string VECTOR_FILE_PATH = "../../vector.txt";
+        private const string VECTOR_FILE_PATH = "../../words.txt";
 
-        private static readonly int[] LEVELS =
+        public static readonly int[] LEVELS =
         {
             // World 1
             0x26A0,
@@ -59,8 +59,7 @@ namespace Super_Mario_RNN
         static void Main(string[] args)
         {
             byte[] rom = File.ReadAllBytes(ROM_PATH);
-
-            int? vectorLength = null;
+            
             List<Tile> tiles = new List<Tile>();
             using (StreamWriter outfile = new StreamWriter(VECTOR_FILE_PATH))
                 for (int level = 0; level < LEVELS.Length; level++)
@@ -72,24 +71,10 @@ namespace Super_Mario_RNN
                         byte rom_1 = rom[i + 1];
 
                         t = new Tile(rom_0, rom_1);
-                        string vector = t.ToVector();
-                        outfile.WriteLine(vector);
+                        string word = t.ToWord();
+                        outfile.WriteLine(word + " ")
 
-                        if (vectorLength == null)
-                            vectorLength = vector.Length;
-                        else if (vectorLength != vector.Length)
-                            throw new Exception("A vector was not the same length as the first.");
-
-                        List<float> fp = new List<float>();
-                        foreach (char c in vector.ToCharArray())
-                        {
-                            if (c == '0')
-                                fp.Add(0);
-                            else
-                                fp.Add(1);
-                        }
-
-                        Tile recreated = new Tile(fp.ToArray());
+                        Tile recreated = new Tile(word);
 
                         if (t.ToString() != recreated.ToString())
                         {

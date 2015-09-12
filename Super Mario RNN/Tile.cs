@@ -1,12 +1,13 @@
 ﻿using System;
+using System.Text.RegularExpressions;
 
-namespace Super_Mario_RNN
+namespace SuperMarioRNN
 {
-    internal class Tile
+    public class Tile
     {
 
         public TileContents? Contents { get; private set; }
-        public bool PageFlag { get; private set; }
+        public bool PageFlag { get; set; }
         public int? Size { get; private set; }
         public int X { get; private set; }
         public int? Y { get; private set; }
@@ -247,6 +248,69 @@ namespace Super_Mario_RNN
             result += OneHot(Array.IndexOf(tileValues, Contents), tileValues.Length);
 
             return result;
+        }
+
+        public string ToWord()
+        {
+            if (End)
+                return "!";
+
+            string result = "";
+
+            var tileValues = Enum.GetValues(typeof(TileContents));
+            int index = Array.IndexOf(tileValues, Contents);
+            result += (char)(index + '0');
+
+            int xVal = X + (PageFlag ? 16 : 0);
+            result += (char)(xVal + '0');
+
+            if (Y != null)
+                result += (char) (Y + 'A');
+
+            if (Size != null)
+                result += (char) (Size + 'a');
+
+            return result;
+        }
+
+        private static Regex WordValidator = new Regex(@"!|[0-o][0-O][A-P]?[a-p]?");
+
+        public Tile(string word)
+        {
+            if (!WordValidator.Match(word).Success)
+                throw new Exception();
+
+            if (word[0] == '!')
+            {
+                End = true;
+                return;
+            }
+
+            var tileValues = Enum.GetValues(typeof(TileContents)) as TileContents[];
+            int index = word[0] - '0';
+            Contents = tileValues[index];
+
+            int xVal = word[1] - '0';
+            X = xVal & 0xF;
+            PageFlag = (xVal & 0x10) != 0;
+
+
+            if (word.Length == 3)
+            {
+                if (word[2] - 'A' < 16)
+                {
+                    Y = word[2] - 'A';
+                }
+                else
+                {
+                    Size = word[2] - 'a';
+                }
+            }
+            else if (word.Length == 4)
+            {
+                Y = word[2] - 'A';
+                Size = word[3] - 'a';
+            }
         }
 
         private static string OneHot(int hot, int span)
