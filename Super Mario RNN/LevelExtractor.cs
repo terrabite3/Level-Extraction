@@ -72,7 +72,7 @@ namespace SuperMarioRNN
 
                         t = new Tile(rom_0, rom_1);
                         string word = t.ToWord();
-                        outfile.WriteLine(word + " ")
+                        outfile.WriteLine(word);
 
                         Tile recreated = new Tile(word);
 

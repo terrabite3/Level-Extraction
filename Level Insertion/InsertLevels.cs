@@ -11,33 +11,35 @@ namespace SuperMarioRNN
     class InsertLevels
     {
         private const string ROM_PATH = "../../../Super Mario RNN/Super_mario_brothers.nes";
-        private const string VECTOR_FILE_PATH = "../../../Super Mario RNN/vector.txt";
+        //private const string VECTOR_FILE_PATH = "../../../Super Mario RNN/vector.txt";
+        private const string WORD_FILE_PATH = "../../../mario_00.txt";
 
         static void Main(string[] args)
         {
             byte[] rom = File.ReadAllBytes(ROM_PATH);
 
-            string[] vectors = File.ReadAllLines(VECTOR_FILE_PATH);
+            string allText = File.ReadAllText(WORD_FILE_PATH);
+
+            string[] words = allText.Split();
 
             List<Tile> tiles = new List<Tile>();
 
-            foreach (string v in vectors)
+            foreach (string w in words)
             {
-                if (v.Contains(","))
+                if (w.Length == 0)
                 {
-                    var q =
-                        from f in v.Split(new[] { ',' })
-                        select float.Parse(f);
-                    tiles.Add(new Tile(q.ToArray()));
+                    continue;
                 }
-                else
-                {   // Zeros and ones with no separator
-                    var q =
-                        from c in v.ToCharArray()
-                        select float.Parse(c.ToString());
-                    tiles.Add(new Tile(q.ToArray()));
+                try
+                {
+                    tiles.Add(new Tile(w));
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Bad word: {0}", w);
                 }
             }
+
 
             List<Tile[]> levels = new List<Tile[]>();
             List<Tile> level = new List<Tile>();
@@ -51,28 +53,41 @@ namespace SuperMarioRNN
                 }
             }
 
-            int selectedLevel = 1;
-            int romPointer = LevelExtractor.LEVELS[0];
-            foreach (Tile t in levels[selectedLevel])
+            Console.WriteLine("Found {0} levels", levels.Count);
+            //int selectedLevel = 1;
+            for (int i = 0; i < levels.Count; i++)
             {
-                ushort tileBytes = t.ToBytes();
-                byte b0 = (byte)(tileBytes >> 8);
-                byte b1 = (byte)(tileBytes & 0xFF);
-                byte rom0 = rom[romPointer];
-                byte rom1 = rom[romPointer + 1];
-                rom[romPointer++] = b0;
-                if (t.End)
-                    break;
-                rom[romPointer++] = b1;
+                int romPointer = LevelExtractor.LEVELS[0];
+                var l = levels[i];
+                Console.Write("Level {0} of {1} has {2} tiles. Press enter to write ROM.", 
+                    i, levels.Count, 
+                    l.Length);
+                Console.ReadLine();
+
+                foreach (Tile t in l)
+                {
+                    ushort tileBytes = t.ToBytes();
+                    byte b0 = (byte)(tileBytes >> 8);
+                    byte b1 = (byte)(tileBytes & 0xFF);
+                    byte rom0 = rom[romPointer];
+                    byte rom1 = rom[romPointer + 1];
+                    rom[romPointer++] = b0;
+                    if (t.End)
+                        break;
+                    rom[romPointer++] = b1;
+                }
+                
+                string outFileName = Path.Combine(
+                    Path.GetDirectoryName(ROM_PATH),
+                    Path.GetFileNameWithoutExtension(ROM_PATH) +
+                    "_out" +
+                    Path.GetExtension(ROM_PATH));
+
+                File.WriteAllBytes(outFileName, rom);
             }
 
-            string outFileName = Path.Combine(
-                Path.GetDirectoryName(ROM_PATH),
-                Path.GetFileNameWithoutExtension(ROM_PATH) +
-                "_out" +
-                Path.GetExtension(ROM_PATH));
-
-            File.WriteAllBytes(outFileName, rom);
+            Console.WriteLine("All levels done. Press Enter to exit.");
+            Console.ReadLine();
         }
     }
 }
